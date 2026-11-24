@@ -2,6 +2,32 @@
 
 **Every unanswered call at a clinic is a patient who books somewhere else.** VoiceCare gives a clinic a receptionist that never puts anyone on hold: **Maya**, a real-time voice agent who checks doctors' availability, books appointments and cancels them in one natural phone-style conversation, while the clinic team watches every booking appear on a live dashboard.
 
+**Python · Pipecat · Sarvam AI · ElevenLabs · WebRTC · SQLite** — speaks **English, हिंदी and বাংলা**
+
+<!-- Demo video: add the link here once recorded -->
+
+![VoiceCare dashboard during a live call with Maya](docs/dashboard.png)
+
+<table>
+  <tr>
+    <td width="34%" valign="top"><img src="docs/call-live.png" alt="iPhone-style test call screen with Maya's greeting"></td>
+    <td valign="top">
+      <img src="docs/appointments.png" alt="Appointments ledger and live activity feed">
+      <br><br>
+      <b>Highlights</b>
+      <ul>
+        <li>Books, checks and cancels appointments in one voice conversation, using LLM tool calling</li>
+        <li>Caller identified only by the phone number they say, read back digit by digit before acting</li>
+        <li>~0.3&nbsp;s LLM response time with Sarvam <code>sarvam-105b-conversations</code></li>
+        <li>Switches between English, Hindi and Bengali mid-call</li>
+        <li>Live dashboard: stats, doctor schedules, appointments and activity update the moment Maya acts</li>
+      </ul>
+    </td>
+  </tr>
+</table>
+
+<sub>Screenshots from a local run. Patients and bookings shown are sample data.</sub>
+
 ---
 
 ## Why a clinic needs this
@@ -114,12 +140,14 @@ The brief recommends Gemini for its free quota. While building, the free Gemini 
 
 ## Dashboard
 
-- **Phone-style call screen** — ringing → connected → ended states, ringtone, call timer, mute and end-call buttons
+- **iPhone test call** — titanium frame, Dynamic Island, iOS lock screen and iOS call screen (calling → connected → ended), ringtone, timer, speaker / mute / end
 - **Live transcript** inside the phone, plus a voice waveform driven by mic and bot audio levels
 - **Booking confirmation card** that pops up in the phone when Maya books or cancels
-- **Schedule** — every doctor's open slots, grouped by day
+- **Live stats** — calls handled (and live now), booked and cancelled today, open slots for the week
+- **Doctors on duty** — specialty icon, next free slot and that day's open times
 - **Appointments ledger** — updates instantly after a booking or cancellation (new rows flash)
-- Responsive layout for mobile
+- **Activity feed** — calls answered, bookings and cancellations as they happen; a "Maya on a call" status in the header
+- Responsive layout: sidebar collapses on laptops, single column on mobile
 
 Plain HTML/CSS/JS, no build step. The Pipecat browser client is loaded from a CDN.
 
