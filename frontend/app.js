@@ -35,47 +35,132 @@ const fmtTime = (iso) => new Date(iso).toLocaleTimeString("en-IN", { hour: "nume
 const maskPhone = (p) => (p.length > 4 ? "•••• " + p.slice(-4) : p);
 const esc = (s) => String(s ?? "").replace(/[&<>"]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]));
 
+const initials = (name) => (name || "?").replace(/^Dr\.?\s*/i, "").split(/\s+/).map((w) => w[0]).slice(0, 2).join("").toUpperCase();
+// Icon + colour per specialty (line icons, drawn with stroke="currentColor").
+const ICONS = {
+  heart: '<path d="M19 14c1.5-1.5 3-3.2 3-5.5A5.5 5.5 0 0 0 16.5 3c-1.8 0-3 .5-4.5 2-1.5-1.5-2.7-2-4.5-2A5.5 5.5 0 0 0 2 8.5c0 2.3 1.5 4 3 5.5l7 7z"/>',
+  steth: '<path d="M5 3v5a5 5 0 0 0 10 0V3"/><path d="M10 13v3a5 5 0 0 0 10 0v-1"/><circle cx="20" cy="13" r="2"/>',
+  skin: '<path d="M12 3l1.8 4.6L18.5 9l-4.7 1.4L12 15l-1.8-4.6L5.5 9l4.7-1.4z"/><path d="M19 15l.9 2.1L22 18l-2.1.9L19 21l-.9-2.1L16 18l2.1-.9z"/>',
+  child: '<circle cx="12" cy="12" r="9"/><path d="M9 10h.01M15 10h.01M9.5 15a3.5 3.5 0 0 0 5 0"/>',
+  phone: '<path d="M22 16.9v3a2 2 0 0 1-2.2 2 19.8 19.8 0 0 1-8.6-3.1 19.5 19.5 0 0 1-6-6A19.8 19.8 0 0 1 2.1 4.2 2 2 0 0 1 4.1 2h3a2 2 0 0 1 2 1.7c.1.9.4 1.8.7 2.7a2 2 0 0 1-.5 2.1L8 9.8a16 16 0 0 0 6 6l1.3-1.3a2 2 0 0 1 2.1-.4c.9.3 1.8.6 2.7.7a2 2 0 0 1 1.7 2z"/>',
+  check: '<path d="M20 6 9 17l-5-5"/>',
+  x: '<path d="M18 6 6 18M6 6l12 12"/>',
+};
+const svg = (name) => `<svg viewBox="0 0 24 24">${ICONS[name]}</svg>`;
+function specialtyStyle(specialty) {
+  const s = specialty.toLowerCase();
+  if (s.includes("cardio")) return { icon: "heart", bg: "#fff1f3", fg: "#e11d48" };
+  if (s.includes("derma")) return { icon: "skin", bg: "#f5f3ff", fg: "#7c3aed" };
+  if (s.includes("pediat") || s.includes("paediat")) return { icon: "child", bg: "#fffbeb", fg: "#d97706" };
+  return { icon: "steth", bg: "#eff6ff", fg: "#2563eb" };
+}
+
 function tickClock() {
-  $("clock").textContent = new Date().toLocaleString("en-IN", { weekday: "short", day: "numeric", month: "short", hour: "2-digit", minute: "2-digit" });
+  const now = new Date();
+  const h = now.getHours();
+  $("greeting").textContent = h < 12 ? "Good morning" : h < 17 ? "Good afternoon" : "Good evening";
+  $("clock").textContent = now.toLocaleString("en-IN", { weekday: "long", day: "numeric", month: "long", hour: "numeric", minute: "2-digit" });
+  const hm = now.toLocaleTimeString("en-IN", { hour: "numeric", minute: "2-digit", hour12: true }).replace(/\s?[ap]m$/i, "");
+  $("statusTime").textContent = hm;
+  $("idleTime").textContent = hm;
+  $("idleDate").textContent = now.toLocaleDateString("en-IN", { weekday: "long", day: "numeric", month: "long" });
 }
 tickClock();
-setInterval(tickClock, 30_000);
+setInterval(tickClock, 15_000);
 
 // ---------------------------------------------------------------- board
 
 async function loadDoctors() {
   const doctors = await (await fetch("/api/doctors")).json();
-  let total = 0;
   $("doctors").innerHTML = doctors.map((d) => {
-    total += d.free_slots.length;
-    const byDay = {};
-    for (const s of d.free_slots) (byDay[fmtDay(s)] ??= []).push(s);
-    const slots = Object.entries(byDay).map(([day, times]) =>
-      `<span class="day">${day}</span>` + times.map((s) => `<span class="slot">${fmtTime(s)}</span>`).join("")).join("");
+    const st = specialtyStyle(d.specialty);
+    const firstDay = d.free_slots.length ? fmtDay(d.free_slots[0]) : null;
+    const dayTimes = d.free_slots.filter((s) => fmtDay(s) === firstDay);
+    const shown = dayTimes.slice(0, 5);
+    const more = d.free_slots.length - shown.length;
+    const next = d.free_slots[0];
     return `<div class="doctor">
-      <div><div class="name">${esc(d.name)}</div><div class="spec">${esc(d.specialty)}</div></div>
-      <div class="slots">${slots || '<span class="spec">Fully booked</span>'}</div>
+      <div class="doc-head">
+        <div class="doc-avatar" style="background:${st.bg};color:${st.fg}">${svg(st.icon)}</div>
+        <div><div class="doc-name">${esc(d.name)}</div><div class="doc-spec">${esc(d.specialty)}</div></div>
+        <div class="doc-next"><div class="k">Next free</div><div class="v">${next ? `${fmtDay(next).split(",")[0]} ${fmtTime(next)}` : "—"}</div></div>
+      </div>
+      <div class="slots">${next
+        ? `<span class="day">${esc(firstDay)}</span>` + shown.map((s) => `<span class="slot">${fmtTime(s)}</span>`).join("")
+          + (more > 0 ? `<span class="slot more">+${more} more</span>` : "")
+        : '<span class="doc-spec">Fully booked this week</span>'}</div>
     </div>`;
   }).join("");
-  $("slotCount").textContent = `${total} open slots shown`;
+  $("slotCount").textContent = `${doctors.length} on duty`;
 }
+
+let lastAppointments = [];
 
 async function loadAppointments(flashId = null) {
   const rows = await (await fetch("/api/appointments")).json();
+  lastAppointments = rows;
   $("apptEmpty").hidden = rows.length > 0;
   $("apptCount").textContent = `${rows.filter((r) => r.status === "booked").length} booked`;
   $("appointments").innerHTML = rows.map((a) => `
     <tr class="${a.id === flashId ? "flash" : ""}">
-      <td class="mono">${a.id}</td>
-      <td>${esc(a.patient_name || "—")}<div class="spec mono">${maskPhone(a.phone)}</div></td>
-      <td>${esc(a.doctor)}<div class="spec">${esc(a.specialty)}</div></td>
-      <td class="mono">${fmtDay(a.starts_at)} · ${fmtTime(a.starts_at)}</td>
+      <td><div class="patient"><span class="p-avatar">${esc(initials(a.patient_name || "?"))}</span>
+        <div><div class="p-name">${esc(a.patient_name || "Unnamed caller")}</div><div class="sub2">${maskPhone(a.phone)}</div></div></div></td>
+      <td>${esc(a.doctor)}<div class="sub2">${esc(a.specialty)}</div></td>
+      <td>${fmtDay(a.starts_at)}<div class="sub2">${fmtTime(a.starts_at)}</div></td>
       <td><span class="pill ${a.status}">${a.status}</span></td>
     </tr>`).join("");
+  renderActivity();
+}
+
+// Activity = call events from this browser session + bookings from the database.
+const callEvents = [];
+
+function renderActivity() {
+  const items = [
+    ...callEvents,
+    ...lastAppointments.map((a) => ({
+      at: new Date(a.created_at),
+      kind: a.status,
+      text: `${a.status === "cancelled" ? "Cancelled" : "Booked"} · ${a.patient_name || "Caller"} with ${a.doctor}, ${fmtDay(a.starts_at)} ${fmtTime(a.starts_at)}`,
+    })),
+  ].sort((x, y) => y.at - x.at).slice(0, 8);
+  $("activity").innerHTML = items.length
+    ? items.map((e) => `<li><span class="mark ${e.kind}">${svg(e.kind === "call" ? "phone" : e.kind === "cancelled" ? "x" : "check")}</span><div>${esc(e.text)}<div class="t">${e.at.toLocaleTimeString("en-IN", { hour: "numeric", minute: "2-digit" })}</div></div></li>`).join("")
+    : '<li class="empty">Waiting for the first call…</li>';
+}
+
+function logCall(text) {
+  callEvents.push({ at: new Date(), kind: "call", text });
+  renderActivity();
+}
+
+const lastStats = {};
+
+async function loadStats() {
+  const s = await (await fetch("/api/stats")).json();
+  const set = (id, v) => {
+    const el = $(id);
+    if (lastStats[id] !== undefined && lastStats[id] !== v) {
+      el.classList.add("bump");
+      setTimeout(() => el.classList.remove("bump"), 1500);
+    }
+    lastStats[id] = v;
+    el.textContent = v;
+  };
+  set("statCalls", s.calls_today);
+  set("statBooked", s.booked_today);
+  set("statCancelled", s.cancelled_today);
+  set("statOpen", s.open_slots);
+  $("statCallsNote").textContent = s.calls_active ? `${s.calls_active} live now` : "since opening";
 }
 
 async function refreshBoard(flashId) {
-  await Promise.all([loadDoctors(), loadAppointments(flashId)]);
+  await Promise.all([loadDoctors(), loadAppointments(flashId), loadStats()]);
+}
+
+function setAgentBusy(busy) {
+  $("agentStatus").classList.toggle("busy", busy);
+  $("agentStatusText").textContent = busy ? "Maya on a call" : "Maya online";
 }
 
 // ---------------------------------------------------------------- transcript
@@ -195,7 +280,7 @@ function drawWave() {
   wctx.clearRect(0, 0, w, h);
   const live = phone.dataset.state === "live";
   const level = live ? Math.max(userLevel, botLevel) : 0.04;
-  const color = botLevel >= userLevel ? "#8fd3b3" : "#f0c36a";
+  const color = botLevel >= userLevel ? "#93b0d8" : "#e2e8f0";
   phase += 0.12;
   const bars = 48;
   for (let i = 0; i < bars; i++) {
@@ -234,18 +319,23 @@ function goLive() {
   if (phone.dataset.state === "live") return;
   stopRinging();
   beep(660, 120);
-  setState("live", "Connected");
+  setState("live", "Maya · AI receptionist");
   startTimer();
+  logCall("Call answered by Maya");
+  loadStats();
 }
 
 function endCall(reason = "") {
   stopRinging();
   clearInterval(timerHandle);
+  setAgentBusy(false);
   if (phone.dataset.state === "ended" || phone.dataset.state === "idle") return;
   beep(380, 260);
   const dur = $("timer").textContent;
   $("endedSummary").innerHTML = [`Duration ${dur}`, ...summary, reason].filter(Boolean).map(esc).join("<br>");
   setState("ended");
+  logCall(`Call ended · ${dur}`);
+  setTimeout(loadStats, 800);
 }
 
 async function startCall() {
@@ -258,7 +348,10 @@ async function startCall() {
   botSegments = new Map();
   muted = false;
   $("muteBtn").classList.remove("on");
-  setState("ringing", "Ringing…");
+  $("speakerBtn").classList.remove("on");
+  $("botAudio").muted = false;
+  setAgentBusy(true);
+  setState("ringing", "calling…");
   startRinging();
 
   client = new PipecatClient({
@@ -312,8 +405,21 @@ $("muteBtn").onclick = () => {
   muted = !muted;
   client?.enableMic(!muted);
   $("muteBtn").classList.toggle("on", muted);
-  $("callStatus").textContent = muted ? "Muted" : "Connected";
+  $("callStatus").textContent = muted ? "muted" : "Maya · AI receptionist";
+};
+$("speakerBtn").onclick = () => {
+  const audio = $("botAudio");
+  audio.muted = !audio.muted;
+  $("speakerBtn").classList.toggle("on", audio.muted);
 };
 
 refreshBoard();
 setInterval(() => refreshBoard(), 15_000);
+
+// Sidebar: highlight the section you jump to.
+document.querySelectorAll(".nav a").forEach((a) => {
+  a.addEventListener("click", () => {
+    document.querySelectorAll(".nav a").forEach((x) => x.classList.remove("active"));
+    a.classList.add("active");
+  });
+});
