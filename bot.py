@@ -302,12 +302,15 @@ async def run_call(runner_args: RunnerArguments, http_session: aiohttp.ClientSes
     @transport.event_handler("on_client_connected")
     async def on_client_connected(transport, client):
         logger.info("Caller connected")
+        CALL_STATS["today"] += 1
+        CALL_STATS["active"] += 1
         context.add_message({"role": "user", "content": "(The call just connected. Greet the caller briefly in English, mention they can also speak Hindi or Bengali, and ask how you can help. After this, follow the caller's language.)"})
         await task.queue_frames([LLMRunFrame()])
 
     @transport.event_handler("on_client_disconnected")
     async def on_client_disconnected(transport, client):
         logger.info("Caller hung up")
+        CALL_STATS["active"] = max(0, CALL_STATS["active"] - 1)
         await task.cancel()
 
     runner = PipelineRunner(handle_sigint=runner_args.handle_sigint)
@@ -332,6 +335,15 @@ async def api_doctors():
 @app.get("/api/appointments")
 async def api_appointments():
     return clinic.dashboard_appointments()
+
+
+# Calls handled since the server started (kept in memory; resets on restart).
+CALL_STATS = {"today": 0, "active": 0}
+
+
+@app.get("/api/stats")
+async def api_stats():
+    return {"calls_today": CALL_STATS["today"], "calls_active": CALL_STATS["active"], **clinic.dashboard_stats()}
 
 
 @app.post("/api/client-log", include_in_schema=False)

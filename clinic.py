@@ -259,6 +259,20 @@ def dashboard_appointments() -> list[dict]:
     return [dict(r) for r in rows]
 
 
+def dashboard_stats() -> dict:
+    """Headline numbers for the dashboard."""
+    today = date.today().isoformat()
+    with connect() as conn:
+        booked_today = conn.execute(
+            "SELECT COUNT(*) FROM appointments WHERE status = 'booked' AND substr(created_at, 1, 10) = ?", (today,)
+        ).fetchone()[0]
+        cancelled_today = conn.execute(
+            "SELECT COUNT(*) FROM appointments WHERE status = 'cancelled' AND substr(created_at, 1, 10) = ?", (today,)
+        ).fetchone()[0]
+        open_slots = sum(len(_free_slots(conn, d["id"], None)) for d in find_doctors(conn, None))
+    return {"booked_today": booked_today, "cancelled_today": cancelled_today, "open_slots": open_slots}
+
+
 if __name__ == "__main__":
     init_db(reset=True)
     print(check_availability("cardio"))
