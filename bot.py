@@ -9,9 +9,11 @@ Run:  python bot.py   then open http://localhost:7860
 """
 
 import os
+import ssl
 from datetime import datetime
 from pathlib import Path
 
+import aiohttp
 import certifi
 
 # Python from python.org on macOS ships without trusted certificates, which breaks
@@ -40,7 +42,7 @@ from pipecat.processors.frameworks.rtvi import RTVIServerMessageFrame
 from pipecat.runner.run import app
 from pipecat.runner.types import RunnerArguments
 from pipecat.services.elevenlabs.stt import CommitStrategy, ElevenLabsRealtimeSTTService
-from pipecat.services.elevenlabs.tts import ElevenLabsTTSService
+from pipecat.services.elevenlabs.tts import ElevenLabsHttpTTSService, ElevenLabsTTSService
 from pipecat.services.google.llm import GoogleLLMService
 from pipecat.services.sarvam.llm import SarvamLLMService
 from pipecat.services.llm_service import FunctionCallParams
@@ -79,6 +81,12 @@ Language:
   ("cardiologist", "dermatologist", "pediatrician", "general physician"), dates as YYYY-MM-DD,
   and phone numbers as plain digits 0-9.
 - When reading a phone number back in Hindi or Bengali, say the digits in that language one by one.
+- In Hindi or Bengali replies, write every number, date and time as words in that language, never
+  as digits, and never use "AM", "PM" or "Dr." (say morning/afternoon in that language, e.g.
+  "সকাল দশটা", "सुबह साढ़े दस बजे", and use "ডাক্তার" / "डॉक्टर"). The voice reads words far more
+  clearly than mixed digits and English abbreviations.
+- Never correct yourself out loud or ask the caller to check a date you are unsure of. Read the date
+  from the tool result once, correctly.
 
 How to talk:
 - This is a phone call. Keep every reply to one or two short sentences. No lists, markdown or emojis.
@@ -208,7 +216,34 @@ def create_llm():
     )
 
 
+def create_tts(http_session: aiohttp.ClientSession):
+    """Maya's voice. ELEVENLABS_TTS_MODEL picks the trade-off:
+
+    - eleven_v3 (default): clearest Hindi/Bengali pronunciation, ~0.7 s to first audio, HTTP only.
+    - eleven_flash_v2_5: fastest (~0.2 s to first audio), streams over WebSocket, fewer credits.
+    """
+    voice = os.getenv("ELEVENLABS_VOICE_ID", "hpp4J3VqNfWAUOO0d1Us")
+    model = os.getenv("ELEVENLABS_TTS_MODEL", "eleven_v3")
+    if model == "eleven_v3":
+        return ElevenLabsHttpTTSService(
+            api_key=os.environ["ELEVENLABS_API_KEY"],
+            aiohttp_session=http_session,
+            settings=ElevenLabsHttpTTSService.Settings(voice=voice, model=model),
+        )
+    return ElevenLabsTTSService(
+        api_key=os.environ["ELEVENLABS_API_KEY"],
+        settings=ElevenLabsTTSService.Settings(voice=voice, model=model),
+    )
+
+
 async def bot(runner_args: RunnerArguments):
+    # aiohttp doesn't read SSL_CERT_FILE, so give it certifi's bundle explicitly.
+    ssl_context = ssl.create_default_context(cafile=certifi.where())
+    async with aiohttp.ClientSession(connector=aiohttp.TCPConnector(ssl=ssl_context)) as http_session:
+        await run_call(runner_args, http_session)
+
+
+async def run_call(runner_args: RunnerArguments, http_session: aiohttp.ClientSession):
     transport = SmallWebRTCTransport(
         webrtc_connection=runner_args.webrtc_connection,
         params=TransportParams(audio_in_enabled=True, audio_out_enabled=True),
@@ -233,10 +268,7 @@ async def bot(runner_args: RunnerArguments):
             filter_background_audio=True,
         ),
     )
-    tts = ElevenLabsTTSService(
-        api_key=os.environ["ELEVENLABS_API_KEY"],
-        settings=ElevenLabsTTSService.Settings(voice=os.getenv("ELEVENLABS_VOICE_ID", "hpp4J3VqNfWAUOO0d1Us")),
-    )
+    tts = create_tts(http_session)
     llm = create_llm()
 
     llm.register_function("check_doctor_availability", handle_check_availability)

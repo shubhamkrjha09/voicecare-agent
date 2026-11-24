@@ -78,7 +78,7 @@ Each call runs one [Pipecat](https://github.com/pipecat-ai/pipecat) pipeline:
 | Turn detection | Silero VAD + ElevenLabs VAD commits | Knows when the caller starts and stops talking; lets the caller interrupt Maya |
 | Speech-to-text | ElevenLabs Realtime STT (`scribe_v2_realtime`) | English + Hindi + Bengali, with doctor names and specialties as key terms |
 | LLM | **Sarvam** `sarvam-105b-conversations` | Holds the conversation and decides when to call tools |
-| Text-to-speech | ElevenLabs (`eleven_flash_v2_5`, voice "Bella") | Maya's voice |
+| Text-to-speech | ElevenLabs (`eleven_v3`, voice "Bella") | Maya's voice, clear in English, Hindi and Bengali |
 | Context | `LLMContext` + aggregators | Conversation memory: what was said and every tool result |
 
 ### Tools (LLM function calling)
@@ -95,7 +95,17 @@ Business rules live in plain Python (`clinic.py`), so the LLM can't invent slots
 - **Hearing:** ElevenLabs STT runs with English as the primary language plus a short list of extra languages (`CALLER_LANGUAGES`, default `hi,bn`). A fixed list avoids the wrong-language guesses full auto-detection makes on short replies like "yes".
 - **Thinking:** English is the default; Sarvam switches to Hindi or Bengali only when the caller does, writing each in its own script (Devanagari, Bengali) so the voice pronounces it naturally, but always passes **tool arguments in English** (specialty names, ISO dates, plain digits).
 - **Understanding everyday words:** "skin doctor", "दिल का डॉक्टर", "bachche ka doctor", "বাচ্চার ডাক্তার" are mapped to the right specialty, and phone numbers transcribed in Hindi or Bengali digits (९८७६…, ৯৮৭৬…) are normalized to 0–9.
-- **Speaking:** the ElevenLabs multilingual voice reads Hindi and Bengali directly, including the phone number read-back digit by digit.
+- **Speaking:** the ElevenLabs multilingual voice reads Hindi and Bengali directly, including the phone number read-back digit by digit. In Indian languages Maya writes numbers, dates and times as words ("সকাল দশটা", not "10:00 AM"), which the voice pronounces far more clearly.
+
+### Why `eleven_v3` for the voice
+Patients speaking Hindi or Bengali need to understand Maya the first time, especially dates, times and their phone number. To compare voice models objectively, the same Bengali reply was synthesized with each model and transcribed back with ElevenLabs speech-to-text:
+
+| Voice model | Bengali sentence recovered | Time to first audio | Streaming |
+|---|---|---|---|
+| `eleven_flash_v2_5` | 85% | ~0.2 s | WebSocket |
+| **`eleven_v3`** | **100%** | ~0.7 s | HTTP |
+
+`eleven_v3` costs about half a second per reply, but it recovered the full sentence in this test and sounded clear in live Hindi and Bengali calls, so it is the default. For English-only or credit-limited use, switch to `eleven_flash_v2_5` with one line in `.env`.
 
 ### Why Sarvam for the LLM
 The brief recommends Gemini for its free quota. While building, the free Gemini tier was returning 7–14 s replies and "503 high demand" errors, which is unusable for voice. Sarvam's `sarvam-105b-conversations` answers in **~0.2–0.3 s** with reliable tool calling and has free signup credits. Gemini is still supported: set `LLM_PROVIDER=google`.
@@ -136,6 +146,7 @@ Open **http://localhost:7860**, click the green call button and allow the microp
 |---|---|---|
 | `ELEVENLABS_API_KEY` | yes | Needs Text to Speech, Speech to Text, Voices (read), Models access |
 | `ELEVENLABS_VOICE_ID` | no | Default: Bella. **Free ElevenLabs plans must use a "premade" voice** — library voices fail via the API |
+| `ELEVENLABS_TTS_MODEL` | no | `eleven_v3` (default, clearest Hindi/Bengali, ~0.7 s to first audio) or `eleven_flash_v2_5` (fastest, ~0.2 s, uses fewer credits) |
 | `CALLER_LANGUAGES` | no | Extra languages besides English, ISO codes, comma-separated. Default `hi,bn` (Hindi, Bengali) |
 | `LLM_PROVIDER` | no | `sarvam` (default) or `google` |
 | `SARVAM_API_KEY` | if Sarvam | From [dashboard.sarvam.ai](https://dashboard.sarvam.ai) |
