@@ -14,10 +14,10 @@ from pathlib import Path
 DB_PATH = Path(__file__).parent / "clinic.db"
 
 DOCTORS = [
+    ("Dr. Khushi Jha", "Pediatrician"),
     ("Dr. Ananya Rao", "General Physician"),
     ("Dr. Vikram Mehta", "Cardiologist"),
     ("Dr. Sara Khan", "Dermatologist"),
-    ("Dr. Rohan Iyer", "Pediatrician"),
 ]
 
 # Each doctor works the same simple schedule on weekdays.
@@ -102,7 +102,7 @@ SPECIALTY_SYNONYMS = {
                      "হৃদয়", "হৃদরোগ", "হার্ট", "বুক"],
     "dermatologist": ["skin", "derma", "hair", "acne", "twacha", "त्वचा", "चमड़ी", "स्किन",
                       "চামড়া", "চর্ম", "ত্বক", "স্কিন"],
-    "pediatrician": ["child", "children", "kid", "baby", "paediatric", "bachcha", "bacche", "बच्चा", "बच्चे", "बच्चों", "शिशु",
+    "pediatrician": ["child", "children", "kid", "baby", "paediatric", "bachcha", "bacche", "bachche", "bachcho", "bachon", "bacchon","बच्चा", "बच्चे", "बच्चों", "शिशु",
                      "শিশু", "বাচ্চা", "বাচ্চার"],
     "general physician": ["general", "fever", "cold", "physician", "gp", "family", "bukhar", "बुखार", "सामान्य",
                           "জ্বর", "সাধারণ"],
