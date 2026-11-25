@@ -49,6 +49,8 @@ from pipecat.services.llm_service import FunctionCallParams
 from pipecat.transports.base_transport import TransportParams
 from pipecat.transports.smallwebrtc.transport import SmallWebRTCTransport
 from pipecat.transcriptions.language import Language
+from pipecat.turns.user_start.min_words_user_turn_start_strategy import MinWordsUserTurnStartStrategy
+from pipecat.turns.user_turn_strategies import UserTurnStrategies
 
 import clinic
 
@@ -280,7 +282,11 @@ async def run_call(runner_args: RunnerArguments, http_session: aiohttp.ClientSes
         context,
         # Laptop mics are often quiet: the default min_volume (0.6) ignored normal speech.
         user_params=LLMUserAggregatorParams(
-            vad_analyzer=SileroVADAnalyzer(params=VADParams(confidence=0.5, min_volume=0.2))
+            vad_analyzer=SileroVADAnalyzer(params=VADParams(confidence=0.5, min_volume=0.2)),
+            # While Maya is talking, only real words (3+) interrupt her. A cough, room noise or
+            # her own voice echoing from the laptop speakers no longer cuts her off mid-sentence.
+            # When she is silent, a single word still starts the caller's turn.
+            user_turn_strategies=UserTurnStrategies(start=[MinWordsUserTurnStartStrategy(min_words=3)]),
         ),
     )
 
