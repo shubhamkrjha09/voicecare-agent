@@ -4,7 +4,7 @@
 
 **Python · Pipecat · Sarvam AI · ElevenLabs · WebRTC · SQLite** — speaks **English, हिंदी and বাংলা**
 
-<!-- Demo video: add the link here once recorded -->
+**▶ [Watch the demo video (Loom, under 3 min)](https://www.loom.com/share/f77070bb920740eda9c59853a099df5e)**: one full booking by voice, with the dashboard updating live.
 
 ![VoiceCare dashboard during a live call with Maya](docs/dashboard.png)
 
